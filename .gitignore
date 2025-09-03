@@ -1,0 +1,11 @@
+myenv
+.vscode
+__pycache__
+save_project
+uploads
+.env
+requirement1.txt
+resume_screener.py
+resume_screening.py
+app.py
+app2.py

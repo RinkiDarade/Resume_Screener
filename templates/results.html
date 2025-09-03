@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Screening Results | Professional Analysis Report</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        /* Collapsible Styles */
+        .collapsible {
+            background-color: #f9fafb;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .collapsible-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding: 1rem;
+            background: #f3f4f6;
+        }
+
+        .collapsible-header:hover {
+            background: #e5e7eb;
+        }
+
+        .collapsible-header h3 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+
+        .collapsible-content {
+            display: none;
+            padding: 1rem;
+            border-top: 1px solid #e5e7eb;
+            background: white;
+        }
+
+        .collapsible.active .collapsible-content {
+            display: block;
+        }
+
+        .score-badge {
+            padding: 0.3rem 0.8rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: white;
+        }
+        .score-excellent { background-color: #059669; }
+        .score-good { background-color: #d97706; }
+        .score-fair { background-color: #dc2626; }
+    </style>
+
+    <style>
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/" class="back-btn">← Back to Upload</a>
+            <h1>Resume Screening Results</h1>
+            <p class="subtitle">Comprehensive analysis report for {{ results|length }} candidate{{ 's' if results|length != 1 else '' }}</p>
+        </div>
+        
+        <div class="content">
+            {% for res in results %}
+            <div class="collapsible">
+                <!-- Candidate Header -->
+                <div class="collapsible-header">
+                    <div class="candidate-details">
+                        <h3>{{ res.candidate_name or 'Candidate Profile' }}</h3>
+                        <p class="candidate-filename">{{ res.filename }}</p>
+                    </div>
+                    <div class="final-score">
+                        {% set score = res.final_score|float %}
+                        {% if score >= 0.8 %}
+                            <div class="score-badge score-excellent">{{ "%.0f"|format(score) }}% MATCH</div>
+                        {% elif score >= 0.6 %}
+                            <div class="score-badge score-good">{{ "%.0f"|format(score) }}% MATCH</div>
+                        {% else %}
+                            <div class="score-badge score-fair">{{ "%.0f"|format(score) }}% MATCH</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Collapsible Content -->
+                <div class="collapsible-content">
+
+                    <!-- Key Metrics -->
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-label">Experience</div>
+                            <div class="metric-value">{{ res.experience }} Years</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Cosine Match</div>
+                            <div class="metric-value">{{ "%.0f"|format(res.cosine_similarity) }}%</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">AI Score</div>
+                            <div class="metric-value">{{ "%.0f"|format(res.genai_score) }}%</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Overall Score</div>
+                            <div class="metric-value">{{ "%.0f"|format(res.final_score) }}%</div>
+                        </div>
+                    </div>
+
+                    <!-- ⚠️ Experience Warning -->
+                    <div class="content-section">
+                        <h4 class="section-title">Experience Verification</h4>
+                        <div class="alert alert-info">
+                            {{ res.exp_warning }}
+                        </div>
+                    </div>
+
+
+                    <!-- ✅ Add Experience Details Section -->
+                    <div class="content-section">
+                        <h4 class="section-title">Experience Details</h4>
+                        <pre>{{ res.experience_details }}</pre>
+                    </div>
+
+                    <!-- Missing Keywords Alert -->
+                    {% if res.missing_keywords_note and 'missing' in res.missing_keywords_note.lower() %}
+                        <div class="content-section">
+                            <div class="alert alert-warning">
+                                 {{ res.missing_keywords_note }}
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    <!-- Mandatory Keywords Check -->
+                    <div class="content-section">
+                        <h4 class="section-title">Mandatory Keywords Verification</h4>
+                        <div style="overflow-x: auto;">
+                            <pre>{{ res.mandatory_keywords_html | safe }}</pre>
+                        </div>
+                    </div>
+
+                    <!-- Total Skill Score -->
+                    <div class="content-section">
+                        <div class="total-score-section">
+                            <div class="total-score-label">Total Skill Assessment Score</div>
+                            <div class="total-score-value">{{ res.total_skill_score }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Individual Skills Assessment -->
+                    <div class="content-section">
+                        <h4 class="section-title">Individual Skill Assessment</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Skill/Technology</th>
+                                    <th>Proficiency Score</th>
+                                    <!-- <th>Assessment Level</th> -->
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for skill, data in res.skill_scores.items() %}
+                                <tr>
+                                    <td class="font-semibold">{{ skill }}</td>
+                                    <td>
+                                        {% set skill_score = data.score|float %}
+                                        <span class="font-bold">{{ "%.0f"|format(skill_score) }} / 100</span>
+                                    </td>
+                                    <!-- <td>
+                                        {% if skill_score >= 0.8 %}
+                                            <span style="color: #059669; font-weight: 600;">Expert</span>
+                                        {% elif skill_score >= 0.6 %}
+                                            <span style="color: #d97706; font-weight: 600;">Proficient</span>
+                                        {% elif skill_score >= 0.4 %}
+                                            <span style="color: #7c3aed; font-weight: 600;">Intermediate</span>
+                                        {% else %}
+                                            <span style="color: #dc2626; font-weight: 600;">Beginner</span>
+                                        {% endif %}
+                                    </td> -->
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Project-Skill Matrix -->
+                    <div class="content-section">
+                        <h4 class="section-title">Project-Skill Matrix Analysis</h4>
+                        <div style="overflow-x: auto;">
+                            {{ res.project_skill_html | safe }}
+                        </div>
+                    </div>
+
+                    <!-- Project Complexity Levels -->
+                    <div class="content-section">
+                        <h4 class="section-title">Project Complexity Assessment</h4>
+                        <div style="overflow-x: auto;">
+                            {{ res.project_levels_html | safe }}
+                        </div>
+                    </div>
+
+                    <!-- AI Detailed Analysis -->
+                    <div class="content-section">
+                        <h4 class="section-title">AI Analysis & Reasoning</h4>
+                        <div class="alert alert-info">
+                            <strong>Assessment Details:</strong>
+                        </div>
+                        <pre>{{ res.genai_reason }}</pre>
+                    </div>
+
+                    <!-- Resume Authenticity Check -->
+                    <div class="content-section">
+                        <h4 class="section-title">Resume Authenticity Verification</h4>
+                        <div class="alert alert-info">
+                            <strong>Authenticity Analysis:</strong>
+                        </div>
+                        <pre>{{ res.authenticity_report }}</pre>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Action Buttons -->
+            <div class="text-center mt-3">
+                <a href="/" class="btn btn-primary">Process More Resumes</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Toggle collapsible sections
+        document.addEventListener('DOMContentLoaded', function() {
+            const collapsibles = document.querySelectorAll('.collapsible');
+            collapsibles.forEach(item => {
+                const header = item.querySelector('.collapsible-header');
+                header.addEventListener('click', function() {
+                    item.classList.toggle('active');
+                });
+            });
+        });
+    </script>
+</body>
+</html>
