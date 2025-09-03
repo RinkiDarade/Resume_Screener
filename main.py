@@ -47,7 +47,7 @@ app.add_middleware(SessionMiddleware, secret_key="supersecretkey123")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# ---------------------------------------------------
+
 
 
 # ---------------------------------------------------
@@ -64,8 +64,6 @@ async def register(request: Request, full_name: str = Form(...), email: str = Fo
     user_id = get_next_user_id()
     save_user(user_id, full_name, email, password)  # keep as-is
     return RedirectResponse(url="/login", status_code=303)
-
-
 
 #----------------------------------------------
 
@@ -109,6 +107,7 @@ async def login(request: Request, email: str = Form(...), password: str = Form(.
 async def logout(request: Request):
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
+
 
 # Middleware helper: check if user is logged in
 def require_login(request: Request):
@@ -188,6 +187,7 @@ async def update_profile(
         print(f"Error updating profile: {e}")
         return RedirectResponse(url="/?error=update_failed", status_code=303)
 
+
 # Endpoint to process resumes
 @app.post("/process", response_class=HTMLResponse)
 async def process_resumes(
@@ -243,7 +243,7 @@ async def process_resumes(
         resume_exp = parse_resume_experience(resume_exp_text)
         if jd_exp > 0:
             exp_warning = (
-                f"⚠️ Candidate has {resume_exp} years, JD requires {jd_exp} years"
+                f" Candidate has {resume_exp} years, JD requires {jd_exp} years"
                 if resume_exp < jd_exp
                 else f"✅ Candidate meets requirement ({resume_exp} vs {jd_exp} years)"
             )

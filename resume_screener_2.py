@@ -3,7 +3,7 @@ import tempfile
 import re
 import json
 
-import streamlit as st
+# import streamlit as st
 import PyPDF2
 import docx2txt
 import pandas as pd
@@ -18,6 +18,8 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 
+from openai import OpenAI
+
 from dotenv import load_dotenv
 
 # Download NLTK data
@@ -27,12 +29,18 @@ nltk.download('omw-1.4')
 
 # Load environment variables and initialize Groq client
 load_dotenv()
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+# client = OpenAI(api_key=OPENAI_API_KEY)
 # client = Groq(api_key=GROQ_API_KEY)
 
 # Two separate Groq clients for clarity
-client_extractor = Groq(api_key=GROQ_API_KEY)   # LLM-1
-client_evaluator = Groq(api_key=GROQ_API_KEY)   # LLM-2
+# client_extractor = Groq(api_key=GROQ_API_KEY)   # LLM-1
+# client_evaluator = Groq(api_key=GROQ_API_KEY)   # LLM-2
+
+client_extractor = OpenAI(api_key=OPENAI_API_KEY)   # LLM-1
+client_evaluator = OpenAI(api_key=OPENAI_API_KEY)   # LLM-2
 
 # Initialize embedding model and NLP utilities
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -54,13 +62,13 @@ lemmatizer = WordNetLemmatizer()
 
 
 # Text extraction functions
-def extract_text_from_pdf(file):
-    pdf = PyPDF2.PdfReader(file)
-    return " ".join([page.extract_text() for page in pdf.pages if page.extract_text()])
+# def extract_text_from_pdf(file):
+#     pdf = PyPDF2.PdfReader(file)
+#     return " ".join([page.extract_text() for page in pdf.pages if page.extract_text()])
 
 
-def extract_text_from_docx(file):
-    return docx2txt.process(file)
+# def extract_text_from_docx(file):
+#     return docx2txt.process(file)
 
 
 
@@ -141,7 +149,7 @@ def llm_call_extractor(prompt, temperature=0):
     """LLM-1: Extractor / Summarizer"""
     try:
         response = client_extractor.chat.completions.create(
-            model="llama-3.3-70b-versatile",   # Extractor model
+            model="gpt-4.1",   # Extractor model
             messages=[{"role": "user", "content": prompt}],
             temperature=temperature
         )
@@ -154,7 +162,7 @@ def llm_call_evaluator(prompt, temperature=0):
     """LLM-2: Evaluator / Recruiter"""
     try:
         response = client_evaluator.chat.completions.create(
-            model="llama-3.3-70b-versatile",  # Evaluator model
+            model="gpt-4.1",  # Evaluator model
             messages=[{"role": "user", "content": prompt}],
             temperature=temperature
         )
@@ -247,32 +255,37 @@ def extract_required_experience(jd_text):
 # Keyword check in projects using llm_call
 def check_mandatory_keywords_in_projects(project_text, keywords):
     prompt = f"""
-        You are analyzing a candidate's project section to check if the following mandatory skills are mentioned:
-        {keywords}
+    You are analyzing a candidate's project/work section to check if the following mandatory skills are mentioned:
+    {keywords}
 
-        Instructions:
-        - Consider synonyms and indirect mentions.  
-        Example: "Built a web app using Flask" → Flask is considered present.  
-        "Implemented LSTM" → Machine Learning is present.  
-        - Output in TWO PARTS exactly:
+    Relaxed Instructions:
+    - Treat both **direct mentions** (e.g., "Python", "Flask") and **indirect references** (e.g., "Built a web app using Flask" → Python implied, "Implemented LSTM" → Machine Learning implied) as present.
+    - Also consider **job roles, titles, and descriptions**.  
+    Example: "Worked as a Python Developer" → Python is present.  
+    "Role: Data Engineer working with Spark" → Spark is present.  
+    - If a skill is commonly required for a mentioned tool or task, count it as present.  
+    Example: Machine Learning project or llm project → Python is assumed present (unless another language is explicitly stated).  
+    - Only mark a skill as missing if there is **no reasonable direct or indirect evidence**.
 
-        1. First, give two clean lists (only skills, no reasons):
-        Present Skills: <comma separated list>
-        Missing Skills: <comma separated list>
+    Output in TWO PARTS exactly:
 
-        2. Then, give a short reason for each missing skill (1 line each) under a section called "Reasons".
+    1. First, give two clean lists (only skills, no reasons):
+    Present Skills: <comma separated list>
+    Missing Skills: <comma separated list>
 
-        Example Output:
-        Present Skills: Python, Machine Learning
-        Missing Skills: SQL, AWS
+    2. Then, give a short reason for each missing skill (1 line each) under a section called "Reasons".
 
-        Reasons:
-        - SQL: No direct or indirect mention found.
-        - AWS: No cloud-related tools mentioned.
+    Example Output:
+    Present Skills: Python, Machine Learning
+    Missing Skills: SQL, AWS
 
-        Project Section:
-        {project_text}
-        """
+    Reasons:
+    - SQL: No database-related keywords mentioned.
+    - AWS: No cloud-related tools or platforms mentioned.
+
+    Candidate's Project/Work Section:
+    {project_text}
+    """
     return llm_call(prompt, temperature=0, mode="extractor")
 
 # Extract "Missing Skills: <skills>" line from function output
