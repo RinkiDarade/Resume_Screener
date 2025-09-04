@@ -3,6 +3,10 @@ import tempfile
 import re
 import json
 
+from typing import List, Dict, Any
+
+from db import ( get_next_candidate_id, save_candidate_report)
+
 # import streamlit as st
 import PyPDF2
 import docx2txt
@@ -484,3 +488,101 @@ def llm_score_with_reason(jd, resume):
     score = float("".join(filter(lambda c: c.isdigit() or c == ".", score_line[0]))) if score_line else 0.0
     reason = "\n".join(reason_lines) if reason_lines else "No explanation provided."
     return score, reason
+
+
+
+# Create a separate function to process a single resume
+def process_single_resume(file_path: str, filename: str, job_description: str, 
+                         mandatory_keywords: List[str], jd_id: str, user_email: str) -> Dict[str, Any]:
+    """
+    Process a single resume file and return the results.
+    This function contains all the logic that was previously in the for loop.
+    """
+    try:
+        resume_text = get_resume_text(file_path)
+        if not resume_text:
+            return None
+
+        candidate_id = get_next_candidate_id()
+        resume_text = resume_text.replace("\n", " ").strip()
+        
+        # Extract candidate info and projects
+        candidate_name, projects = extract_candidate_info_with_projects(resume_text)
+
+        # Keyword checking
+        keyword_check_result = check_mandatory_keywords_in_projects(projects, mandatory_keywords)
+        missing_skills = extract_missing_skills(keyword_check_result)
+        missing_keywords_note = ', '.join(missing_skills) if missing_skills else ""
+
+        # Project analysis
+        project_levels = classify_project_levels(projects)
+        project_skill_df = build_project_skill_matrix(projects, mandatory_keywords)
+        skill_scores, total_score = calculate_project_skill_score(project_skill_df)
+
+        # Experience analysis
+        jd_exp = extract_required_experience(job_description)
+        resume_exp_text = extract_experience(resume_text)
+        resume_exp = parse_resume_experience(resume_exp_text)
+        
+        if jd_exp > 0:
+            exp_warning = (
+                f" Candidate has {resume_exp} years, JD requires {jd_exp} years"
+                if resume_exp < jd_exp
+                else f"✅ Candidate meets requirement ({resume_exp} vs {jd_exp} years)"
+            )
+        else:
+            exp_warning = "ℹ️ JD has no explicit experience requirement"
+
+        # Scoring
+        cos_score = cosine_similarity_score(job_description, resume_text) * 100
+        genai_score, genai_reason = llm_score_with_reason(job_description, resume_text)
+        authenticity_report = llm_experience_verification(resume_text)
+        final_score = round((cos_score * 0.3) + (genai_score * 0.7), 2)
+
+        # Save to database
+        save_candidate_report(
+            candidate_id=candidate_id,
+            candidate_name=candidate_name,
+            resume_filename=filename,
+            experience=resume_exp,
+            experience_details=resume_exp_text,
+            cosine_score=round(cos_score, 2),
+            genai_score=round(genai_score, 2),
+            final_score=final_score,
+            missing_keywords_note=missing_keywords_note,
+            exp_warning=exp_warning,
+            projects_list=projects,
+            project_skill_df=project_skill_df.to_dict(orient="records"),
+            mandatory_skill_check_df=keyword_check_result,
+            project_level_df=project_levels,
+            individual_skill_scores=skill_scores,
+            genai_reason=genai_reason,
+            authenticity_report=authenticity_report,
+            jd_id=jd_id,
+            created_by=user_email,
+            updated_by=user_email
+        )
+
+        return {
+            "filename": filename,
+            "candidate_name": candidate_name,
+            "experience": resume_exp,
+            "experience_details": resume_exp_text,
+            "cosine_similarity": round(cos_score, 2),
+            "genai_score": round(genai_score, 2),
+            "final_score": final_score,
+            "missing_keywords_note": missing_keywords_note,
+            "projects": projects,
+            "exp_warning": exp_warning,
+            "mandatory_keywords_html": keyword_check_result,
+            "project_skill_html": project_skill_df.to_html(classes="table table-striped", index=True),
+            "project_levels_html": pd.DataFrame(project_levels).to_html(classes="table table-striped", index=False),
+            "skill_scores": skill_scores,
+            "total_skill_score": total_score,
+            "genai_reason": genai_reason,
+            "authenticity_report": authenticity_report
+        }
+
+    except Exception as e:
+        print(f"Error processing {filename}: {str(e)}")
+        return None
