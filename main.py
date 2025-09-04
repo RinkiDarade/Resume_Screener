@@ -7,6 +7,9 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 import pandas as pd
 from typing import List
+
+import time
+
 from fastapi.responses import HTMLResponse, RedirectResponse
 # from werkzeug.security import generate_password_hash
 from werkzeug.security import check_password_hash
@@ -195,7 +198,6 @@ async def update_profile(
 
 
 # Endpoint to process resumes
-import time
 
 # @app.post("/process", response_class=HTMLResponse)
 # async def process_resumes(
@@ -373,7 +375,7 @@ async def process_resumes(
         except:
             pass
 
-    total_time = time.time() - start_time  # ⏱️ End timer
+    total_time = time.time() - start_time  #  End timer
     print(f"⚡ Processed {len(file_paths)} resumes in {total_time:.2f} seconds using ThreadPoolExecutor")
 
     return templates.TemplateResponse("results.html", {"request": request, "results": results})
