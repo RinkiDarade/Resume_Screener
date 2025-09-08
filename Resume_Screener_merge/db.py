@@ -105,12 +105,10 @@ def save_candidate_report(resume_filename,candidate_id, candidate_name, experien
         "project_skill_match": project_skill_df,
         "mandatory_skill_check": mandatory_skill_check_df,
         "project_complexity_levels": project_level_df,
-        
         "individual_skill_scores": individual_skill_scores,
         "genai_reason": genai_reason,
         "authenticity_report": authenticity_report,
-        "jd_id": jd_id,
-                    
+        "jd_id": jd_id,                  # Link to JD
         "created_by": created_by,        # User/system who created entry
         "updated_by": updated_by,        # Last user/system updated
         "created_at": datetime.utcnow()
@@ -152,8 +150,8 @@ def save_job_description(jd_description, created_by="admin_user"):
         existing_jd = jd_collection.find_one({"jd_description": jd_description})
         print(f"JD already exists with ID: {existing_jd['jd_id']}")
         return existing_jd['jd_id']
-
-
+    
+        
 
 def save_candidate_status(jd_id, candidate_id, status, updated_by="system"):
     """

@@ -61,6 +61,14 @@
                         <div class="stat-number" id="totalScreenings">0</div>
                         <div class="stat-label">Total Screenings</div>
                     </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalCandidates">0</div>
+                        <div class="stat-label">Candidates Processed</div>
+                    </div>
+                    <!-- <div class="stat-card">
+                        <div class="stat-number" id="avgScore">0%</div>
+                        <div class="stat-label">Average Score</div>
+                    </div> -->
                 </div>
 
                 <div class="candidate-list">
@@ -73,77 +81,84 @@
                     </div>
                 </div>
             </div>
+
             <!-- Process Resumes Section -->
-            
-            <div id="process" class="dashboard-section">
-                <div class="content-header">
-                    <h1 class="content-title">Screen Resumes</h1>
-                    <p class="content-subtitle">Upload resumes and job description to find the best matches</p>
-                </div>
+            <div class="process-form">
+                <form id="processForm" action="/process" method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="job_description">
+                            Job Description
+                            <span class="label-description">Enter the complete job description including requirements, responsibilities, and qualifications</span>
+                        </label>
+                        <textarea 
+                            id="job_description" 
+                            name="job_description" 
+                            rows="8" 
+                            placeholder="Enter detailed job description here..."
+                            required
+                        >{{ job_description or '' }}</textarea>
+                    </div>
 
-                <div class="process-form">
-                    <form id="processForm" action="/process" method="post" enctype="multipart/form-data">
-                        <div class="form-group">
-                            <label for="job_description">
-                                Job Description
-                                <span class="label-description">Enter the complete job description including requirements, responsibilities, and qualifications</span>
-                            </label>
-                            <textarea 
-                                id="job_description" 
-                                name="job_description" 
-                                rows="8" 
-                                placeholder="Enter detailed job description here..."
-                                required
-                            >{{ job_description or '' }}</textarea>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="mandatory_keywords">
-                                Mandatory Keywords
-                                <span class="label-description">Comma-separated list of essential skills and technologies</span>
-                            </label>
-                            <div style="display: flex; gap: 10px; align-items: flex-end;">
-                                <input 
-                                    type="text" 
-                                    id="mandatory_keywords" 
-                                    name="mandatory_keywords" 
-                                    placeholder="e.g., Python, Machine Learning, SQL, React, AWS"
-                                    value="{{ mandatory_keywords or '' }}"
-                                    style="flex: 1;"
-                                    required
-                                >
-                                <button 
-                                    type="button" 
-                                    id="propagateBtn" 
-                                    class="btn btn-secondary"
-                                    onclick="propagateSkillsFromJD()"
-                                    style="white-space: nowrap;"
-                                >
-                                    Extract Skills from JD
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="uploaded_resumes">
-                                Resume Files
-                                <span class="label-description">Upload multiple resume files (PDF, DOC, DOCX supported)</span>
-                            </label>
+                    <div class="form-group">
+                        <label for="mandatory_keywords">
+                            Mandatory Keywords
+                            <span class="label-description">Comma-separated list of essential skills and technologies</span>
+                        </label>
+                        <div style="display: flex; gap: 10px; align-items: flex-end;">
                             <input 
-                                type="file" 
-                                id="uploaded_resumes" 
-                                name="uploaded_resumes" 
-                                multiple 
-                                accept=".pdf,.doc,.docx"
+                                type="text" 
+                                id="mandatory_keywords" 
+                                name="mandatory_keywords" 
+                                placeholder="e.g., Python, Machine Learning, SQL, React, AWS"
+                                value="{{ mandatory_keywords or '' }}"
+                                style="flex: 1;"
                                 required
                             >
+                            <button 
+                                type="button" 
+                                id="propagateBtn" 
+                                class="btn btn-secondary"
+                                onclick="propagateSkillsFromJD()"
+                                style="white-space: nowrap;"
+                            >
+                                Propagate Skills from JD
+                            </button>
                         </div>
+                    </div>
 
-                        <div class="text-center">
-                            <button type="submit" class="btn btn-primary">Process Resumes</button>
+                    <div class="form-group">
+                        <label>
+                            <input type="radio" name="flow_type" value="new_flow" >
+                                Upload New Resumes
+                        </label>
                         </div>
-                    </form>
-                </div>
+                        <div>
+                        <label>
+                            <input type="radio" name="flow_type" value="old_flow">
+                            
+                            Upload from Existing Resume
+                        </label>
+                    </div>
+
+                    <div class="form-group", id="upload_resume">
+                        <label for="uploaded_resumes">
+                            Resume Files
+                            <span class="label-description">Upload multiple resume files (PDF, DOC, DOCX supported)</span>
+                        </label>
+                        <input 
+                            type="file" 
+                            id="uploaded_resumes" 
+                            name="uploaded_resumes" 
+                            multiple 
+                            accept=".pdf,.doc,.docx"
+                        
+                        >
+                    </div>
+
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-primary">Process Resumes</button>
+                    </div>
+                </form>
             </div>
 
             <script>
@@ -382,9 +397,26 @@
         }
     </style>
 </body>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+        <script>
+    $(document).ready(function(){
+    $('input[type="radio"][name="flow_type"]').change(function(){
+        if ($(this).val() === 'new_flow') {
+        $('#upload_resume').show(); // Show the div
+        $('#processForm').attr('action', '/process_resume');
+        } else {
+        $('#upload_resume').hide(); // Hide the div
+        $('#processForm').attr('action', '/process');
+        }
+
+    });
+    });
+    </script>
+    
 </html>
 
 
 
 
 
+    

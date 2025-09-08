@@ -150,7 +150,7 @@
                     <div class="content-section">
                         <div class="total-score-section">
                             <div class="total-score-label">Total Skill Assessment Score</div>
-                            <div class="total-score-value">{{ res.total_skill_score | round(2) }} </div>
+                            <div class="total-score-value">{{ res.total_skill_score }} </div>
                         </div>
                     </div>
 
@@ -170,15 +170,14 @@
                                 <tr>
                                     <td class="font-semibold">{{ skill }}</td>
                                     <td>
-                                        <span class="font-bold">{{ data.score|round(2) }} / {{ data.max_score_per_skill|round(2) }}</span>
-
+                                        <span class="font-bold">{{ "%.2f"|format(data.score) }} / {{ "%.2f"|format(data.max_score_per_skill) }}</span>
                                     </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
-
+ 
                     <!-- Project-Skill Matrix -->
                     <div class="content-section">
                         <h4 class="section-title">Project-Skill Matrix Analysis</h4>

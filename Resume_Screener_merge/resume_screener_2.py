@@ -23,8 +23,6 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 
 from openai import OpenAI
-from PyPDF2 import PdfReader
-import docx2txt
 
 from dotenv import load_dotenv
 
@@ -41,7 +39,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # client = OpenAI(api_key=OPENAI_API_KEY)
 # client = Groq(api_key=GROQ_API_KEY)
 
-# Two separate Groq clients for clarity
+# Two separate Groq clients 
 # client_extractor = Groq(api_key=GROQ_API_KEY)   # LLM-1
 # client_evaluator = Groq(api_key=GROQ_API_KEY)   # LLM-2
 
@@ -67,34 +65,61 @@ lemmatizer = WordNetLemmatizer()
 #         return f"LLM call error: {str(e)}"
 
 
+# Text extraction functions
+# def extract_text_from_pdf(file):
+#     pdf = PyPDF2.PdfReader(file)
+#     return " ".join([page.extract_text() for page in pdf.pages if page.extract_text()])
+
+
+# def extract_text_from_docx(file):
+#     return docx2txt.process(file)
+
+
+
 
 def get_resume_text(uploaded_file_or_path):
     """
     Extract text from uploaded resume file (PDF or DOCX).
-    Supports both FastAPI UploadFile objects and local file paths.
+    Supports FastAPI UploadFile objects or local file paths (str).
     """
     text = ""
 
-    # Handle FastAPI UploadFile vs local path
     if isinstance(uploaded_file_or_path, str):
+        # Local file path
         filename = uploaded_file_or_path.lower()
-        file_obj = uploaded_file_or_path
-    else:
-        filename = uploaded_file_or_path.filename.lower()
-        uploaded_file_or_path.file.seek(0)
-        file_obj = uploaded_file_or_path.file
-
-    try:
         if filename.endswith(".pdf"):
-            reader = PdfReader(file_obj)
-            pages_text = [page.extract_text() for page in reader.pages if page.extract_text()]
-            text = " ".join(pages_text)
+            try:
+                reader = PdfReader(uploaded_file_or_path)
+                pages_text = [page.extract_text() for page in reader.pages if page.extract_text()]
+                text = " ".join(pages_text)
+            except Exception as e:
+                text = f"Error reading PDF: {e}"
         elif filename.endswith(".docx"):
-            text = docx2txt.process(file_obj)
+            try:
+                text = docx2txt.process(uploaded_file_or_path)
+            except Exception as e:
+                text = f"Error reading DOCX: {e}"
         else:
             text = "Unsupported file format. Please upload PDF or DOCX."
-    except Exception as e:
-        text = f"Error reading file: {e}"
+    else:
+        # FastAPI UploadFile
+        filename = uploaded_file_or_path.filename.lower()
+        if filename.endswith(".pdf"):
+            try:
+                uploaded_file_or_path.file.seek(0)
+                reader = PdfReader(uploaded_file_or_path.file)
+                pages_text = [page.extract_text() for page in reader.pages if page.extract_text()]
+                text = " ".join(pages_text)
+            except Exception as e:
+                text = f"Error reading PDF: {e}"
+        elif filename.endswith(".docx"):
+            try:
+                uploaded_file_or_path.file.seek(0)
+                text = docx2txt.process(uploaded_file_or_path.file)
+            except Exception as e:
+                text = f"Error reading DOCX: {e}"
+        else:
+            text = "Unsupported file format. Please upload PDF or DOCX."
 
     return text.strip()
 
@@ -282,18 +307,15 @@ def extract_missing_skills(text):
 # Extract projects with LLM
 def extract_candidate_info_with_projects(resume_text):
     prompt = f"""
-From the resume text below, extract:
+    From the resume below, extract:
 
-1. Candidate Name
-   - Usually appears at the very top of the resume (header section).
-   - Pick the full name of the candidate (ignore company names, addresses, emails).
-
-2. List of work-related projects or major contributions.
-   - Look for sections like "Projects", "Experience", "Professional Experience", "Work Experience", or anywhere a project, client, or assignment is mentioned.
-   - Treat each distinct project, client engagement, or major task as a project.
-   - For each project, provide:
-     - Project Name (if not explicitly given, infer a concise name from context, e.g., technology used or client name).
-     - Project Description (summarize key responsibilities, technologies, goals, and outcomes in a few sentences).
+    1. Candidate Name
+       - If multiple names appear, pick the full name from the top of the resume or the header section.
+    2. List of work-related project experiences.
+       - Treat any section mentioning a "Client Name" or "Project Role" as a project.
+       - For each project, provide:
+         - Project Name (if not given, combine Client Name + Project Role as the name)
+         - Project Description (summarize the responsibilities and technologies into a detailed description)
 
     Format STRICTLY as JSON like this:
     {{
@@ -360,27 +382,27 @@ def build_project_skill_matrix(projects, mandatory_skills):
 def calculate_project_skill_score(skill_project_df):
     total_projects = skill_project_df.shape[0]
     total_skills = skill_project_df.shape[1]
-
+ 
     if total_skills == 0 or total_projects == 0:
         return {}, 0.0
-
+ 
     base_weight = 100 / total_skills
     max_score_per_skill = round(base_weight, 2)  
     skill_scores = {}
-
+ 
     for skill in skill_project_df.columns:
         present_count = skill_project_df[skill].sum()
         factor = present_count / total_projects
         score = round(base_weight * factor, 2)
         skill_scores[skill] = {
-            "count": int(present_count), 
+            "count": int(present_count),
             "score": score,
             "max_score_per_skill": max_score_per_skill  
         }
-
+ 
     total_score = round(sum(v['score'] for v in skill_scores.values()), 2)
     
-    return skill_scores, total_score  
+    return skill_scores, total_score
 
 
 # Additional LLM functions unchanged but call `llm_call`:
@@ -467,7 +489,6 @@ def llm_score_with_reason(jd, resume):
     response = llm_call(prompt, temperature=0, mode="evaluator")
     lines = response.split("\n")
     score_line = [l for l in lines if "SCORE" in l.upper()]
-    print("Score line : ",score_line)
     reason_lines = [l for l in lines if l.strip().startswith("-")]
 
     score = float("".join(filter(lambda c: c.isdigit() or c == ".", score_line[0]))) if score_line else 0.0
@@ -526,27 +547,27 @@ def process_single_resume(file_path: str, filename: str, job_description: str,
 
         # Save to database
         save_candidate_report(
-                candidate_id=candidate_id,
-                candidate_name=candidate_name,
-                resume_filename=filename,
-                experience=resume_exp,
-                experience_details=resume_exp_text,
-                cosine_score=round(cos_score, 2),
-                genai_score=round(genai_score, 2),
-                final_score=final_score,
-                missing_keywords_note=missing_keywords_note,
-                exp_warning=exp_warning,
-                projects_list=projects,
-                project_skill_df=project_skill_df.to_dict(orient="records"),
-                mandatory_skill_check_df=keyword_check_result,
-                project_level_df=project_levels,
-                individual_skill_scores=skill_scores,  # This now includes max_score_per_skill for each skill
-                genai_reason=genai_reason,
-                authenticity_report=authenticity_report,
-                jd_id=jd_id,
-                created_by=user_email,
-                updated_by=user_email
-            )
+            candidate_id=candidate_id,
+            candidate_name=candidate_name,
+            resume_filename=filename,
+            experience=resume_exp,
+            experience_details=resume_exp_text,
+            cosine_score=round(cos_score, 2),
+            genai_score=round(genai_score, 2),
+            final_score=final_score,
+            missing_keywords_note=missing_keywords_note,
+            exp_warning=exp_warning,
+            projects_list=projects,
+            project_skill_df=project_skill_df.to_dict(orient="records"),
+            mandatory_skill_check_df=keyword_check_result,
+            project_level_df=project_levels,
+            individual_skill_scores=skill_scores,
+            genai_reason=genai_reason,
+            authenticity_report=authenticity_report,
+            jd_id=jd_id,
+            created_by=user_email,
+            updated_by=user_email
+        )
 
         return {
             "filename": filename,
@@ -574,16 +595,90 @@ def process_single_resume(file_path: str, filename: str, job_description: str,
 
 
 
+# def extract_skills_from_jd(jd_text: str) -> dict:
+#     """
+#     Extracts skills and requirements from a job description using LLM
+#     and returns them in the desired JSON format.
+#     """
+
+#     schema = {
+#         "min_exp_range": "",
+#         "max_exp_range": "",
+#         "compulsory_programming_languages": "",
+#         "programming_languages_compulsory": False,
+#         "programming_languages": "",
+#         "cloud_services_compulsory": False,
+#         "must_cloud_services": "",
+#         "cloud_services": "",
+#         "databases_compulsory": False,
+#         "must_databases": "",
+#         "databases": "",
+#         "devops_compulsory": False,
+#         "must_devops": "",
+#         "devops": "",
+#         "big_data_compulsory": False,
+#         "must_big_data": "",
+#         "big_data": "",
+#         "frameworks_compulsory": False,
+#         "must_framework": "",
+#         "frameworks": ""
+#     }
+
+#     prompt_jd = f"""
+#     You are an expert job description parser.
+#     From the following job description, extract and return a JSON object in the exact schema provided below.
+
+#     Focus especially on identifying skills, both hard skills (e.g., programming languages, tools, frameworks, databases, methodologies) and soft skills (e.g., communication, leadership, problem-solving), even if they are implied rather than explicitly stated.
+
+#     Do not include generic duties or job responsibilities as skills.
+#     Return the output strictly in the JSON format shown below.
+#     {json.dumps(schema, indent=4)}
+
+#     Job Description:
+#     {jd_text}
+#     """
+
+#     response = client_extractor.chat.completions.create(
+#         model="gpt-4.1",  # or "gpt-4o"
+#         messages=[{"role": "user", "content": prompt_jd}],
+#         temperature=0
+#     )
+
+#     try:
+#         parsed_output = json.loads(response.choices[0].message["content"])
+#     except Exception:
+#         parsed_output = schema  # fallback to empty schema if parsing fails
+
+#     return parsed_output
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def extract_skills_from_jd(jd_text: str) -> dict:
     prompt = f"""
     You are an AI that extracts structured information from job descriptions.
-
+ 
     Your task:
     - Read the given job description carefully.
     - Extract required skills, tools, and experience.
     - Classify them into the correct categories.
     - Output strictly in valid JSON (no explanations, no markdown, no text outside JSON).
-
+ 
     {{
         "min_exp_range": "<min years of experience as a number or empty if not mentioned>",
         "max_exp_range": "<max years of experience as a number or empty if not mentioned>",
@@ -606,11 +701,11 @@ def extract_skills_from_jd(jd_text: str) -> dict:
         "must_framework": "<comma-separated compulsory frameworks>",
         "frameworks": "<comma-separated optional frameworks>"
     }}
-
+ 
     Job Description:
     {jd_text}
     """
-
+ 
     response = client_evaluator.chat.completions.create(
         model="gpt-4.1",  
         messages=[
@@ -619,14 +714,14 @@ def extract_skills_from_jd(jd_text: str) -> dict:
         ],
         temperature=0
     )
-
+ 
     raw_output = response.choices[0].message.content.strip()
-
+ 
     # Convert string JSON to Python dict
     try:
         parsed_output = json.loads(raw_output)
         print("Parsed JD Skills:", parsed_output)  # Debugging line
     except json.JSONDecodeError:
         raise ValueError(f"Invalid JSON returned by LLM: {raw_output}")
-
+ 
     return parsed_output
